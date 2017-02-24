@@ -7,10 +7,22 @@ textarea {
 #jobs .job {
   padding: 6px;
   border: solid black 1px;
+  margin: 6px;
 }
-#jobs .job .result {
-  padding: 6px;
-  border: solid black 1px;
+#jobs .job.done {
+  border-color: #6c6;
+}
+#jobs .job.failed {
+  border-color: #c66;
+}
+#jobs .job.error {
+  border-color: #c66;
+}
+#jobs .job.beachball {
+  background: url(https://images.duckduckgo.com/iu/?u=http%3A%2F%2Fwww.southjerseydata.com%2Fimages%2Fspinning%2520beachball.gif&f=1);
+  background-size: 50px;
+  background-repeat: no-repeat;
+  background-position: center;
 }
 </style>
 
@@ -33,15 +45,23 @@ textarea {
   integrity="sha256-hVVnYaiADRTO2PzUGmuLJr8BLUSjGIZsDYGmIJLv2b8="
   crossorigin="anonymous"></script>
 <script>
-function check(evt) {
-  $el = $(evt.target);
-  var job_id = $el.data('job_id');
+var timers = {};
+function check(job_id, $el) {
   $.ajax({
     url: "https://" + $('#username').val() + ".carto.com/api/v2/sql/job/" + job_id + "?api_key=" + $('#api_key').val(),
   }).done(function (resp) {
-    $el.append($('<div />').addClass('result').text(JSON.stringify(resp)));
+    $el.text(JSON.stringify(resp, undefined, 2));
+    $el.parent().addClass(resp.status);
+    if (resp.status === 'pending' || resp.status === 'running') {
+      $el.parent().addClass('beachball');
+    } else {
+      $el.parent().removeClass('beachball');
+      clearInterval(timers[job_id]);
+    }
   }).fail(function (err) {
-    $('#error').text(err);
+    $el.text(JSON.stringify(err, undefined, 2));
+    $el.parent().addClass('error');
+    clearInterval(timers[job_id]);
   });
 }
 $('#batch').on('submit', function (evt) {
@@ -51,10 +71,18 @@ $('#batch').on('submit', function (evt) {
     url: "https://" + $('#username').val() + ".carto.com/api/v2/sql/job?api_key=" + $('#api_key').val(),
     //contentType: 'json',
     data: {
-      query: $('#query').val() 
+      query: $('#query').val()
     }
   }).done(function (resp) {
-    $('#jobs').append($('<div />').data('job_id', resp.job_id).text(resp.job_id).addClass('job').on('click', check));
+    var $result = $('<pre class="result">');
+    $('#jobs').prepend($('<div />')
+        .data('job_id', resp.job_id)
+        .text(resp.job_id)
+        .addClass('job')
+        .append($result)); //.on('click', check));
+    timers[resp.job_id] = setInterval(function () {
+      check(resp.job_id, $result);
+    }, 1000);
   }).fail(function (err) {
     $('#error').text(err);
   });
